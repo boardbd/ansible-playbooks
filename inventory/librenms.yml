@@ -1,0 +1,52 @@
+---
+# LibreNMS Dynamic Inventory Configuration
+#
+# All values can be overridden with environment variables:
+#   LIBRENMS_URL, LIBRENMS_TOKEN
+
+# LibreNMS API base URL (required).
+librenms_url: "https://librenms.example.com/api/v0"
+
+# API token generated from LibreNMS → Settings → API → API Settings (required).
+# For security, prefer setting LIBRENMS_TOKEN as an environment variable
+# or encrypting this file with Ansible Vault.
+librenms_token: "REPLACE_WITH_YOUR_API_TOKEN"
+
+# Verify TLS certificates. Set to false for self-signed certs.
+validate_certs: true
+
+# API request timeout in seconds.
+timeout: 30
+
+# Which device field to use as the Ansible inventory hostname.
+# Options: hostname, sysName, ip
+hostname_field: "hostname"
+
+# Which device field to use for ansible_host (the address Ansible connects to).
+# Options: hostname, ip
+ansible_host_field: "hostname"
+
+# How to group devices. Any combination of:
+#   os             - group by operating system (e.g., os_nxos, os_linux)
+#   type           - group by device type (e.g., type_network, type_server)
+#   location       - group by location string
+#   hardware       - group by hardware model (e.g., hw_nexus_9000)
+#   device_groups  - group by LibreNMS device groups
+group_by:
+  - os
+  - type
+  - location
+  - hardware
+  - device_groups
+
+# Optional prefix for all generated group names (e.g., "librenms_").
+group_prefix: ""
+
+# Include disabled devices in the inventory.
+include_disabled: false
+
+# Include ignored devices in the inventory.
+include_ignored: false
+
+# Attach host variables from LibreNMS (device_id, os, hardware, serial, etc.).
+host_vars: true

@@ -108,6 +108,54 @@ Set `nxos_issu` in `group_vars/nxos.yml` to `desired` or `required` for In Servi
 
 ---
 
+### LibreNMS Dynamic Inventory (`inventory/librenms.py`)
+
+Pulls devices directly from your LibreNMS instance and builds Ansible inventory groups automatically.
+
+**Groups created:**
+
+| Prefix | Source | Example |
+|--------|--------|---------|
+| `os_` | Device OS | `os_nxos`, `os_linux` |
+| `type_` | Device type | `type_network`, `type_server` |
+| `location_` | Location string | `location_dc1` |
+| `hw_` | Hardware model | `hw_nexus_9000` |
+| `group_` | LibreNMS device groups | `group_core_switches` |
+
+**Host variables set automatically:**
+
+- `ansible_host` — device hostname/IP
+- `ansible_network_os` / `ansible_connection` — auto-detected for Cisco NX-OS and IOS
+- `librenms_device_id`, `librenms_os`, `librenms_hardware`, `librenms_serial`, `librenms_version`, `librenms_location`, `librenms_status`, `librenms_uptime`
+
+**Setup:**
+
+1. Install Python dependencies:
+   ```bash
+   pip install requests pyyaml
+   ```
+
+2. Edit `inventory/librenms.yml` with your LibreNMS URL and API token, or set environment variables:
+   ```bash
+   export LIBRENMS_URL="https://librenms.example.com/api/v0"
+   export LIBRENMS_TOKEN="your-api-token"
+   ```
+
+3. Test the inventory:
+   ```bash
+   ./inventory/librenms.py --list
+   ansible-inventory -i inventory/librenms.py --graph
+   ```
+
+4. Use with any playbook:
+   ```bash
+   ansible-playbook -i inventory/librenms.py playbooks/nxos_upgrade.yml
+   ```
+
+**Configuration options** are documented in `inventory/librenms.yml` (hostname field, grouping, filters, etc.).
+
+---
+
 ## Adding Roles
 
 Create a new role with the standard structure:
