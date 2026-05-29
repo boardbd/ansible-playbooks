@@ -57,6 +57,57 @@ ansible-playbook playbooks/site.yml
 ansible-playbook playbooks/site.yml --limit webservers
 ```
 
+## Playbooks
+
+### NX-OS Software Upgrade (`playbooks/nxos_upgrade.yml`)
+
+Automates Cisco NX-OS software upgrades on Nexus switches with full validation.
+
+**Workflow:**
+
+1. **Pre-checks** — gather current version, verify bootflash space, save/backup config
+2. **Image transfer** — SCP the target image to bootflash (skipped if already present)
+3. **Verification** — MD5 checksum validation
+4. **Install** — set boot variable and trigger upgrade via `nxos_install_os`
+5. **Reload & wait** — wait for the switch to come back online
+6. **Post-checks** — verify target version is running, check module status, save config
+7. **Cleanup** (optional) — delete the old image from bootflash
+
+**Setup:**
+
+1. Install required collections:
+   ```bash
+   ansible-galaxy collection install -r requirements.yml
+   ```
+
+2. Add switches to `inventory/hosts` under the `[nxos]` group:
+   ```ini
+   [nxos]
+   nxos_switch1 ansible_host=192.168.1.50
+   ```
+
+3. Edit `group_vars/nxos.yml` with your target image, MD5, SCP server, and credentials.
+   Encrypt sensitive values with Ansible Vault:
+   ```bash
+   ansible-vault encrypt_string 'mypassword' --name 'scp_password'
+   ```
+
+4. Run the upgrade:
+   ```bash
+   ansible-playbook playbooks/nxos_upgrade.yml
+   ```
+
+5. Optionally delete the old image after a successful upgrade:
+   ```bash
+   ansible-playbook playbooks/nxos_upgrade.yml -e "delete_old_image=true"
+   ```
+
+**ISSU (non-disruptive upgrade):**
+
+Set `nxos_issu` in `group_vars/nxos.yml` to `desired` or `required` for In Service Software Upgrade (supported on N5k, N7k, N9k).
+
+---
+
 ## Adding Roles
 
 Create a new role with the standard structure:

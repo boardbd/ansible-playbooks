@@ -1,0 +1,35 @@
+---
+# Connection settings for Cisco NX-OS switches
+ansible_connection: ansible.netcommon.network_cli
+ansible_network_os: cisco.nxos.nxos
+ansible_become: false
+
+# Set these per-environment or encrypt with Ansible Vault:
+# ansible_user: admin
+# ansible_password: !vault |
+#   $ANSIBLE_VAULT;1.2;AES256
+#   ...
+
+# --- Upgrade Variables ---
+# Target NX-OS version and image filename.
+# Update these values for each upgrade campaign.
+target_nxos_version: "10.3(2)"
+target_nxos_image: "nxos64-cs.10.3.2.F.bin"
+target_image_md5: "REPLACE_WITH_MD5_FROM_CISCO_DOWNLOADS"
+
+# SCP server hosting the NX-OS image.
+# Encrypt scp_password with Ansible Vault.
+scp_server: "192.168.1.100"
+scp_user: "scpuser"
+scp_password: "REPLACE_WITH_SCP_PASSWORD"
+scp_file_path: "/"
+
+# VRF used for SCP file transfer (usually "management").
+copy_vrf: "management"
+
+# Set to "desired" or "required" to attempt ISSU (non-disruptive upgrade).
+# Only supported on N5k, N7k, N9k. Default: "no" (disruptive).
+# nxos_issu: "no"
+
+# Set to true to delete the old image after a successful upgrade.
+# delete_old_image: false
