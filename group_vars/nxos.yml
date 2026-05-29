@@ -33,3 +33,12 @@ copy_vrf: "management"
 
 # Set to true to delete the old image after a successful upgrade.
 # delete_old_image: false
+
+# --- Slack Notifications ---
+# Incoming webhook URL for upgrade notifications.
+# Create one at: https://api.slack.com/messaging/webhooks
+# Encrypt with Ansible Vault for production use.
+slack_webhook_url: "REPLACE_WITH_SLACK_WEBHOOK_URL"
+
+# Slack channel override (optional). Leave empty to use the webhook default.
+# slack_channel: "#network-upgrades"
