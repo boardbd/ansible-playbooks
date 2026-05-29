@@ -1,0 +1,28 @@
+# Retry files
+*.retry
+
+# Vault password files
+.vault_pass
+.vault_password
+
+# Sensitive variable files
+**/vault.yml
+**/secrets.yml
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

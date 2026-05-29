@@ -1,0 +1,9 @@
+[all]
+# Add your managed hosts here.
+# Example:
+# webserver1 ansible_host=192.168.1.10
+# dbserver1  ansible_host=192.168.1.20
+
+[webservers]
+
+[dbservers]

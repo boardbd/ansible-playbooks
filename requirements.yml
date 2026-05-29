@@ -1,0 +1,17 @@
+---
+# Ansible Galaxy role dependencies
+# Add roles from Galaxy or Git repositories here.
+#
+# Example:
+# roles:
+#   - name: geerlingguy.docker
+#     version: "6.1.0"
+#   - name: geerlingguy.nginx
+#
+# collections:
+#   - name: community.general
+#     version: ">=5.0.0"
+
+roles: []
+
+collections: []

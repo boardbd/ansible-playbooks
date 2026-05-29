@@ -1,0 +1,7 @@
+---
+# Variables applied to all hosts.
+# Add common variables here.
+#
+# Example:
+# ntp_server: pool.ntp.org
+# timezone: UTC
