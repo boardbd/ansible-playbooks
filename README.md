@@ -102,6 +102,25 @@ Automates Cisco NX-OS software upgrades on Nexus switches with full validation.
    ansible-playbook playbooks/nxos_upgrade.yml -e "delete_old_image=true"
    ```
 
+**Slack Notifications:**
+
+The playbook sends upgrade status to a Slack channel via incoming webhook:
+
+| Event | Color | Emoji |
+|-------|-------|-------|
+| Upgrade starting | Blue | :rocket: |
+| Upgrade succeeded | Green | :white_check_mark: |
+| Upgrade failed | Red | :rotating_light: |
+
+Each notification includes: hostname, previous version, target version, and image name. Failure notifications also include the failed task name and error message.
+
+Setup:
+1. Create an [incoming webhook](https://api.slack.com/messaging/webhooks) in your Slack workspace.
+2. Set `slack_webhook_url` in `group_vars/nxos.yml` (encrypt with Vault).
+3. Optionally set `slack_channel` to override the webhook's default channel.
+
+To disable Slack notifications, leave `slack_webhook_url` empty or undefined.
+
 **ISSU (non-disruptive upgrade):**
 
 Set `nxos_issu` in `group_vars/nxos.yml` to `desired` or `required` for In Service Software Upgrade (supported on N5k, N7k, N9k).

@@ -3,7 +3,7 @@
 #
 # Upgrades NX-OS software on Cisco Nexus switches with full
 # pre-check validation, image transfer, installation, and
-# post-upgrade verification.
+# post-upgrade verification. Reports results to Slack.
 #
 # Usage:
 #   ansible-playbook playbooks/nxos_upgrade.yml
@@ -20,6 +20,8 @@
 #   - scp_password          : SCP password (use Ansible Vault)
 #   - scp_file_path         : Path to image on SCP server (default: "/")
 #   - copy_vrf              : VRF for SCP transfer (default: "management")
+#   - slack_webhook_url     : Slack incoming webhook URL for notifications
+#   - slack_channel         : Slack channel (optional, default: webhook default)
 
 - name: Cisco NX-OS Software Upgrade
   hosts: nxos
@@ -28,6 +30,8 @@
     copy_vrf: management
     scp_file_path: "/"
     delete_old_image: false
+    slack_channel: ""
+    upgrade_status: "unknown"
 
   tasks:
     # ------------------------------------------------------------------
@@ -76,114 +80,230 @@
           dir_path: "{{ playbook_dir }}/../backups"
 
     # ------------------------------------------------------------------
-    # IMAGE TRANSFER
+    # SLACK: Upgrade Starting
     # ------------------------------------------------------------------
-    - name: "TRANSFER | Copy NX-OS image to bootflash via SCP"
-      cisco.nxos.nxos_command:
-        commands:
-          - command: >-
-              copy scp://{{ scp_user }}:{{ scp_password }}@{{ scp_server }}{{ scp_file_path }}{{ target_nxos_image }}
-              bootflash:{{ target_nxos_image }} vrf {{ copy_vrf }}
-            prompt:
-              - "continue connecting"
-              - "Are you sure"
-              - "Password"
-            answer:
-              - "yes"
-              - "yes"
-              - "{{ scp_password }}"
-        wait_for: result[0] contains "Copy complete"
-      vars:
-        ansible_command_timeout: 3600
-      when: image_check is failed
+    - name: "NOTIFY | Send Slack notification — upgrade starting"
+      ansible.builtin.uri:
+        url: "{{ slack_webhook_url }}"
+        method: POST
+        body_format: json
+        body:
+          channel: "{{ slack_channel | default(omit, true) }}"
+          username: "Ansible NX-OS Upgrade"
+          icon_emoji: ":rocket:"
+          attachments:
+            - color: "#439FE0"
+              title: "NX-OS Upgrade Starting"
+              fields:
+                - title: "Host"
+                  value: "{{ inventory_hostname }}"
+                  short: true
+                - title: "Current Version"
+                  value: "{{ nxos_facts.ansible_facts.ansible_net_version }}"
+                  short: true
+                - title: "Target Version"
+                  value: "{{ target_nxos_version }}"
+                  short: true
+                - title: "Target Image"
+                  value: "{{ target_nxos_image }}"
+                  short: true
+        status_code: 200
+      delegate_to: localhost
+      when: slack_webhook_url is defined and slack_webhook_url | length > 0
 
     # ------------------------------------------------------------------
-    # IMAGE VERIFICATION
+    # UPGRADE (block/rescue/always for error handling + Slack reporting)
     # ------------------------------------------------------------------
-    - name: "VERIFY | Check MD5 checksum of transferred image"
-      cisco.nxos.nxos_command:
-        commands:
-          - command: "show file bootflash:{{ target_nxos_image }} md5sum"
-      register: md5_result
-      vars:
-        ansible_command_timeout: 600
+    - name: "UPGRADE | Execute upgrade with error handling"
+      block:
+        # --------------------------------------------------------------
+        # IMAGE TRANSFER
+        # --------------------------------------------------------------
+        - name: "TRANSFER | Copy NX-OS image to bootflash via SCP"
+          cisco.nxos.nxos_command:
+            commands:
+              - command: >-
+                  copy scp://{{ scp_user }}:{{ scp_password }}@{{ scp_server }}{{ scp_file_path }}{{ target_nxos_image }}
+                  bootflash:{{ target_nxos_image }} vrf {{ copy_vrf }}
+                prompt:
+                  - "continue connecting"
+                  - "Are you sure"
+                  - "Password"
+                answer:
+                  - "yes"
+                  - "yes"
+                  - "{{ scp_password }}"
+            wait_for: result[0] contains "Copy complete"
+          vars:
+            ansible_command_timeout: 3600
+          when: image_check is failed
 
-    - name: "VERIFY | Assert MD5 checksum matches"
-      ansible.builtin.assert:
-        that:
-          - target_image_md5 in md5_result.stdout[0]
-        fail_msg: >-
-          MD5 mismatch! Expected {{ target_image_md5 }},
-          got {{ md5_result.stdout[0] }}.
-          Aborting upgrade.
-        success_msg: "MD5 checksum verified successfully."
+        # --------------------------------------------------------------
+        # IMAGE VERIFICATION
+        # --------------------------------------------------------------
+        - name: "VERIFY | Check MD5 checksum of transferred image"
+          cisco.nxos.nxos_command:
+            commands:
+              - command: "show file bootflash:{{ target_nxos_image }} md5sum"
+          register: md5_result
+          vars:
+            ansible_command_timeout: 600
 
-    # ------------------------------------------------------------------
-    # INSTALL
-    # ------------------------------------------------------------------
-    - name: "INSTALL | Set boot variable to target image"
-      cisco.nxos.nxos_install_os:
-        system_image_file: "{{ target_nxos_image }}"
-        issu: "{{ nxos_issu | default('no') }}"
-      register: install_result
-      vars:
-        ansible_command_timeout: 2400
+        - name: "VERIFY | Assert MD5 checksum matches"
+          ansible.builtin.assert:
+            that:
+              - target_image_md5 in md5_result.stdout[0]
+            fail_msg: >-
+              MD5 mismatch! Expected {{ target_image_md5 }},
+              got {{ md5_result.stdout[0] }}.
+              Aborting upgrade.
+            success_msg: "MD5 checksum verified successfully."
 
-    # ------------------------------------------------------------------
-    # RELOAD & WAIT
-    # ------------------------------------------------------------------
-    - name: "RELOAD | Wait for switch to come back online"
-      ansible.builtin.wait_for_connection:
-        delay: 300
-        timeout: 1800
-        sleep: 30
+        # --------------------------------------------------------------
+        # INSTALL
+        # --------------------------------------------------------------
+        - name: "INSTALL | Set boot variable to target image"
+          cisco.nxos.nxos_install_os:
+            system_image_file: "{{ target_nxos_image }}"
+            issu: "{{ nxos_issu | default('no') }}"
+          register: install_result
+          vars:
+            ansible_command_timeout: 2400
 
-    # ------------------------------------------------------------------
-    # POST-CHECKS
-    # ------------------------------------------------------------------
-    - name: "POST-CHECK | Gather NX-OS facts after upgrade"
-      cisco.nxos.nxos_facts:
-        gather_subset:
-          - min
-      register: post_facts
+        # --------------------------------------------------------------
+        # RELOAD & WAIT
+        # --------------------------------------------------------------
+        - name: "RELOAD | Wait for switch to come back online"
+          ansible.builtin.wait_for_connection:
+            delay: 300
+            timeout: 1800
+            sleep: 30
 
-    - name: "POST-CHECK | Display new NX-OS version"
-      ansible.builtin.debug:
-        msg: "Upgraded version: {{ post_facts.ansible_facts.ansible_net_version }}"
+        # --------------------------------------------------------------
+        # POST-CHECKS
+        # --------------------------------------------------------------
+        - name: "POST-CHECK | Gather NX-OS facts after upgrade"
+          cisco.nxos.nxos_facts:
+            gather_subset:
+              - min
+          register: post_facts
 
-    - name: "POST-CHECK | Assert upgrade was successful"
-      ansible.builtin.assert:
-        that:
-          - post_facts.ansible_facts.ansible_net_version == target_nxos_version
-        fail_msg: >-
-          Upgrade verification FAILED.
-          Expected {{ target_nxos_version }},
-          running {{ post_facts.ansible_facts.ansible_net_version }}.
-        success_msg: "Upgrade verified — running {{ target_nxos_version }}."
+        - name: "POST-CHECK | Display new NX-OS version"
+          ansible.builtin.debug:
+            msg: "Upgraded version: {{ post_facts.ansible_facts.ansible_net_version }}"
 
-    - name: "POST-CHECK | Verify all line cards are online"
-      cisco.nxos.nxos_command:
-        commands:
-          - command: "show module"
-      register: module_status
+        - name: "POST-CHECK | Assert upgrade was successful"
+          ansible.builtin.assert:
+            that:
+              - post_facts.ansible_facts.ansible_net_version == target_nxos_version
+            fail_msg: >-
+              Upgrade verification FAILED.
+              Expected {{ target_nxos_version }},
+              running {{ post_facts.ansible_facts.ansible_net_version }}.
+            success_msg: "Upgrade verified — running {{ target_nxos_version }}."
 
-    - name: "POST-CHECK | Display module status"
-      ansible.builtin.debug:
-        msg: "{{ module_status.stdout_lines[0] }}"
+        - name: "POST-CHECK | Verify all line cards are online"
+          cisco.nxos.nxos_command:
+            commands:
+              - command: "show module"
+          register: module_status
 
-    - name: "POST-CHECK | Save running configuration"
-      cisco.nxos.nxos_config:
-        save_when: always
+        - name: "POST-CHECK | Display module status"
+          ansible.builtin.debug:
+            msg: "{{ module_status.stdout_lines[0] }}"
 
-    # ------------------------------------------------------------------
-    # CLEANUP (optional)
-    # ------------------------------------------------------------------
-    - name: "CLEANUP | Delete old NX-OS image from bootflash"
-      cisco.nxos.nxos_command:
-        commands:
-          - command: "delete bootflash:{{ nxos_facts.ansible_facts.ansible_net_image }}"
-            prompt:
-              - "Do you want to delete"
-            answer:
-              - "y"
-      when: delete_old_image | bool
+        - name: "POST-CHECK | Save running configuration"
+          cisco.nxos.nxos_config:
+            save_when: always
+
+        # --------------------------------------------------------------
+        # CLEANUP (optional)
+        # --------------------------------------------------------------
+        - name: "CLEANUP | Delete old NX-OS image from bootflash"
+          cisco.nxos.nxos_command:
+            commands:
+              - command: "delete bootflash:{{ nxos_facts.ansible_facts.ansible_net_image }}"
+                prompt:
+                  - "Do you want to delete"
+                answer:
+                  - "y"
+          when: delete_old_image | bool
+
+        - name: "Set upgrade status to success"
+          ansible.builtin.set_fact:
+            upgrade_status: "success"
+            upgrade_new_version: "{{ post_facts.ansible_facts.ansible_net_version }}"
+
+      rescue:
+        - name: "Set upgrade status to failed"
+          ansible.builtin.set_fact:
+            upgrade_status: "failed"
+            upgrade_error: "{{ ansible_failed_result.msg | default(ansible_failed_task.name | default('Unknown error')) }}"
+
+        - name: "NOTIFY | Send Slack notification — upgrade FAILED"
+          ansible.builtin.uri:
+            url: "{{ slack_webhook_url }}"
+            method: POST
+            body_format: json
+            body:
+              channel: "{{ slack_channel | default(omit, true) }}"
+              username: "Ansible NX-OS Upgrade"
+              icon_emoji: ":x:"
+              attachments:
+                - color: "danger"
+                  title: ":rotating_light: NX-OS Upgrade FAILED"
+                  fields:
+                    - title: "Host"
+                      value: "{{ inventory_hostname }}"
+                      short: true
+                    - title: "Previous Version"
+                      value: "{{ nxos_facts.ansible_facts.ansible_net_version }}"
+                      short: true
+                    - title: "Target Version"
+                      value: "{{ target_nxos_version }}"
+                      short: true
+                    - title: "Failed Task"
+                      value: "{{ ansible_failed_task.name | default('Unknown') }}"
+                      short: true
+                    - title: "Error"
+                      value: "{{ ansible_failed_result.msg | default('See Ansible output for details') }}"
+                      short: false
+            status_code: 200
+          delegate_to: localhost
+          when: slack_webhook_url is defined and slack_webhook_url | length > 0
+
+        - name: "Fail the play after sending Slack notification"
+          ansible.builtin.fail:
+            msg: "NX-OS upgrade failed on {{ inventory_hostname }}. See Slack and Ansible output for details."
+
+      always:
+        - name: "NOTIFY | Send Slack notification — upgrade SUCCESS"
+          ansible.builtin.uri:
+            url: "{{ slack_webhook_url }}"
+            method: POST
+            body_format: json
+            body:
+              channel: "{{ slack_channel | default(omit, true) }}"
+              username: "Ansible NX-OS Upgrade"
+              icon_emoji: ":white_check_mark:"
+              attachments:
+                - color: "good"
+                  title: ":tada: NX-OS Upgrade Successful"
+                  fields:
+                    - title: "Host"
+                      value: "{{ inventory_hostname }}"
+                      short: true
+                    - title: "Previous Version"
+                      value: "{{ nxos_facts.ansible_facts.ansible_net_version }}"
+                      short: true
+                    - title: "New Version"
+                      value: "{{ upgrade_new_version | default('N/A') }}"
+                      short: true
+                    - title: "Target Image"
+                      value: "{{ target_nxos_image }}"
+                      short: true
+            status_code: 200
+          delegate_to: localhost
+          when:
+            - upgrade_status == "success"
+            - slack_webhook_url is defined and slack_webhook_url | length > 0
