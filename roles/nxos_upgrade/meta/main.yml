@@ -1,0 +1,17 @@
+---
+galaxy_info:
+  role_name: nxos_upgrade
+  author: boardbd
+  description: Automates Cisco NX-OS software upgrades with validation and Slack notifications.
+  license: MIT
+  min_ansible_version: "2.12"
+  platforms:
+    - name: NXOS
+      versions:
+        - all
+
+dependencies:
+  - src: cisco.nxos
+    type: collection
+  - src: ansible.netcommon
+    type: collection

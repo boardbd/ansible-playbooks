@@ -1,0 +1,51 @@
+---
+# Role: nxos_upgrade
+#
+# Orchestrates the full NX-OS upgrade lifecycle:
+#   pre-checks → notify → transfer → verify → install → reload →
+#   post-checks → cleanup → notify success/failure
+
+- name: "Include pre-check tasks"
+  ansible.builtin.include_tasks: pre_checks.yml
+
+- name: "Include Slack starting notification"
+  ansible.builtin.include_tasks: notify_start.yml
+
+- name: "Execute upgrade with error handling"
+  block:
+    - name: "Include image transfer tasks"
+      ansible.builtin.include_tasks: transfer.yml
+
+    - name: "Include image verification tasks"
+      ansible.builtin.include_tasks: verify.yml
+
+    - name: "Include install and reload tasks"
+      ansible.builtin.include_tasks: install.yml
+
+    - name: "Include post-check tasks"
+      ansible.builtin.include_tasks: post_checks.yml
+
+    - name: "Include cleanup tasks"
+      ansible.builtin.include_tasks: cleanup.yml
+
+    - name: "Set upgrade status to success"
+      ansible.builtin.set_fact:
+        upgrade_status: "success"
+        upgrade_new_version: "{{ post_facts.ansible_facts.ansible_net_version }}"
+
+  rescue:
+    - name: "Set upgrade status to failed"
+      ansible.builtin.set_fact:
+        upgrade_status: "failed"
+        upgrade_error: "{{ ansible_failed_result.msg | default(ansible_failed_task.name | default('Unknown error')) }}"
+
+    - name: "Include Slack failure notification"
+      ansible.builtin.include_tasks: notify_failure.yml
+
+    - name: "Fail the play after sending Slack notification"
+      ansible.builtin.fail:
+        msg: "NX-OS upgrade failed on {{ inventory_hostname }}. See Slack and Ansible output for details."
+
+  always:
+    - name: "Include Slack success notification"
+      ansible.builtin.include_tasks: notify_success.yml

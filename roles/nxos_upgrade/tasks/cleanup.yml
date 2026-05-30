@@ -1,0 +1,10 @@
+---
+- name: "CLEANUP | Delete old NX-OS image from bootflash"
+  cisco.nxos.nxos_command:
+    commands:
+      - command: "delete bootflash:{{ nxos_facts.ansible_facts.ansible_net_image }}"
+        prompt:
+          - "Do you want to delete"
+        answer:
+          - "y"
+  when: delete_old_image | bool

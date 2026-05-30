@@ -1,0 +1,14 @@
+---
+- name: "INSTALL | Set boot variable to target image"
+  cisco.nxos.nxos_install_os:
+    system_image_file: "{{ target_nxos_image }}"
+    issu: "{{ nxos_issu | default('no') }}"
+  register: install_result
+  vars:
+    ansible_command_timeout: 2400
+
+- name: "RELOAD | Wait for switch to come back online"
+  ansible.builtin.wait_for_connection:
+    delay: 300
+    timeout: 1800
+    sleep: 30
