@@ -1,0 +1,29 @@
+---
+- name: "NOTIFY | Send Slack notification — upgrade starting"
+  ansible.builtin.uri:
+    url: "{{ slack_webhook_url }}"
+    method: POST
+    body_format: json
+    body:
+      channel: "{{ slack_channel | default(omit, true) }}"
+      username: "Ansible NX-OS Upgrade"
+      icon_emoji: ":rocket:"
+      attachments:
+        - color: "#439FE0"
+          title: "NX-OS Upgrade Starting"
+          fields:
+            - title: "Host"
+              value: "{{ inventory_hostname }}"
+              short: true
+            - title: "Current Version"
+              value: "{{ nxos_facts.ansible_facts.ansible_net_version }}"
+              short: true
+            - title: "Target Version"
+              value: "{{ target_nxos_version }}"
+              short: true
+            - title: "Target Image"
+              value: "{{ target_nxos_image }}"
+              short: true
+    status_code: 200
+  delegate_to: localhost
+  when: slack_webhook_url is defined and slack_webhook_url | length > 0

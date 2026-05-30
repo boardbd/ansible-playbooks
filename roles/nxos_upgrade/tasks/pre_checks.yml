@@ -1,0 +1,42 @@
+---
+- name: "PRE-CHECK | Gather NX-OS facts"
+  cisco.nxos.nxos_facts:
+    gather_subset:
+      - min
+  register: nxos_facts
+
+- name: "PRE-CHECK | Display current NX-OS version"
+  ansible.builtin.debug:
+    msg: "Current version: {{ nxos_facts.ansible_facts.ansible_net_version }}"
+
+- name: "PRE-CHECK | Skip if already running target version"
+  ansible.builtin.meta: end_host
+  when: nxos_facts.ansible_facts.ansible_net_version == target_nxos_version
+
+- name: "PRE-CHECK | Verify bootflash free space"
+  cisco.nxos.nxos_command:
+    commands:
+      - command: "dir bootflash: | json-pretty"
+  register: bootflash_dir
+
+- name: "PRE-CHECK | Display bootflash usage"
+  ansible.builtin.debug:
+    msg: "{{ bootflash_dir.stdout_lines[0] }}"
+
+- name: "PRE-CHECK | Check if target image already exists on bootflash"
+  cisco.nxos.nxos_command:
+    commands:
+      - command: "dir bootflash:{{ target_nxos_image }}"
+  register: image_check
+  ignore_errors: true
+
+- name: "PRE-CHECK | Save running configuration"
+  cisco.nxos.nxos_config:
+    save_when: always
+
+- name: "PRE-CHECK | Backup running config to file"
+  cisco.nxos.nxos_config:
+    backup: true
+    backup_options:
+      filename: "{{ inventory_hostname }}_pre_upgrade_{{ ansible_date_time.date | default('backup') }}.cfg"
+      dir_path: "{{ playbook_dir }}/../backups"

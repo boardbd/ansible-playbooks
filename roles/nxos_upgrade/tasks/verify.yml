@@ -1,0 +1,18 @@
+---
+- name: "VERIFY | Check MD5 checksum of transferred image"
+  cisco.nxos.nxos_command:
+    commands:
+      - command: "show file bootflash:{{ target_nxos_image }} md5sum"
+  register: md5_result
+  vars:
+    ansible_command_timeout: 600
+
+- name: "VERIFY | Assert MD5 checksum matches"
+  ansible.builtin.assert:
+    that:
+      - target_image_md5 in md5_result.stdout[0]
+    fail_msg: >-
+      MD5 mismatch! Expected {{ target_image_md5 }},
+      got {{ md5_result.stdout[0] }}.
+      Aborting upgrade.
+    success_msg: "MD5 checksum verified successfully."

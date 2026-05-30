@@ -24,15 +24,13 @@ scp_user: "scpuser"
 scp_password: "REPLACE_WITH_SCP_PASSWORD"
 scp_file_path: "/"
 
-# VRF used for SCP file transfer (usually "management").
-copy_vrf: "management"
-
-# Set to "desired" or "required" to attempt ISSU (non-disruptive upgrade).
-# Only supported on N5k, N7k, N9k. Default: "no" (disruptive).
-# nxos_issu: "no"
-
-# Set to true to delete the old image after a successful upgrade.
-# delete_old_image: false
+# The following variables have sensible defaults in the nxos_upgrade role
+# (roles/nxos_upgrade/defaults/main.yml). Override them here if needed:
+#   copy_vrf: "management"
+#   scp_file_path: "/"
+#   delete_old_image: false
+#   nxos_issu: "no"
+#   slack_channel: ""
 
 # --- Slack Notifications ---
 # Incoming webhook URL for upgrade notifications.

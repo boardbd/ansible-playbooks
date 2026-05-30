@@ -1,0 +1,19 @@
+---
+- name: "TRANSFER | Copy NX-OS image to bootflash via SCP"
+  cisco.nxos.nxos_command:
+    commands:
+      - command: >-
+          copy scp://{{ scp_user }}:{{ scp_password }}@{{ scp_server }}{{ scp_file_path }}{{ target_nxos_image }}
+          bootflash:{{ target_nxos_image }} vrf {{ copy_vrf }}
+        prompt:
+          - "continue connecting"
+          - "Are you sure"
+          - "Password"
+        answer:
+          - "yes"
+          - "yes"
+          - "{{ scp_password }}"
+    wait_for: result[0] contains "Copy complete"
+  vars:
+    ansible_command_timeout: 3600
+  when: image_check is failed

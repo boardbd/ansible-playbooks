@@ -1,0 +1,34 @@
+---
+- name: "POST-CHECK | Gather NX-OS facts after upgrade"
+  cisco.nxos.nxos_facts:
+    gather_subset:
+      - min
+  register: post_facts
+
+- name: "POST-CHECK | Display new NX-OS version"
+  ansible.builtin.debug:
+    msg: "Upgraded version: {{ post_facts.ansible_facts.ansible_net_version }}"
+
+- name: "POST-CHECK | Assert upgrade was successful"
+  ansible.builtin.assert:
+    that:
+      - post_facts.ansible_facts.ansible_net_version == target_nxos_version
+    fail_msg: >-
+      Upgrade verification FAILED.
+      Expected {{ target_nxos_version }},
+      running {{ post_facts.ansible_facts.ansible_net_version }}.
+    success_msg: "Upgrade verified — running {{ target_nxos_version }}."
+
+- name: "POST-CHECK | Verify all line cards are online"
+  cisco.nxos.nxos_command:
+    commands:
+      - command: "show module"
+  register: module_status
+
+- name: "POST-CHECK | Display module status"
+  ansible.builtin.debug:
+    msg: "{{ module_status.stdout_lines[0] }}"
+
+- name: "POST-CHECK | Save running configuration"
+  cisco.nxos.nxos_config:
+    save_when: always

@@ -1,0 +1,32 @@
+---
+- name: "NOTIFY | Send Slack notification — upgrade FAILED"
+  ansible.builtin.uri:
+    url: "{{ slack_webhook_url }}"
+    method: POST
+    body_format: json
+    body:
+      channel: "{{ slack_channel | default(omit, true) }}"
+      username: "Ansible NX-OS Upgrade"
+      icon_emoji: ":x:"
+      attachments:
+        - color: "danger"
+          title: ":rotating_light: NX-OS Upgrade FAILED"
+          fields:
+            - title: "Host"
+              value: "{{ inventory_hostname }}"
+              short: true
+            - title: "Previous Version"
+              value: "{{ nxos_facts.ansible_facts.ansible_net_version }}"
+              short: true
+            - title: "Target Version"
+              value: "{{ target_nxos_version }}"
+              short: true
+            - title: "Failed Task"
+              value: "{{ ansible_failed_task.name | default('Unknown') }}"
+              short: true
+            - title: "Error"
+              value: "{{ ansible_failed_result.msg | default('See Ansible output for details') }}"
+              short: false
+    status_code: 200
+  delegate_to: localhost
+  when: slack_webhook_url is defined and slack_webhook_url | length > 0

@@ -1,0 +1,16 @@
+---
+# VRF used for SCP file transfer (usually "management").
+copy_vrf: "management"
+
+# Path to image on SCP server.
+scp_file_path: "/"
+
+# Set to true to delete the old NX-OS image after a successful upgrade.
+delete_old_image: false
+
+# Slack channel override (empty = use webhook default).
+slack_channel: ""
+
+# ISSU mode: "no" (default/disruptive), "desired", or "required".
+# Only supported on N5k, N7k, N9k.
+# nxos_issu: "no"

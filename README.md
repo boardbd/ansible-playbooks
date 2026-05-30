@@ -9,13 +9,31 @@ A collection of Ansible playbooks and roles for infrastructure automation and co
 ├── ansible.cfg          # Ansible configuration
 ├── requirements.yml     # Galaxy role/collection dependencies
 ├── inventory/
-│   └── hosts            # Inventory of managed hosts
+│   ├── hosts            # Static inventory of managed hosts
+│   ├── librenms.py      # LibreNMS dynamic inventory script
+│   └── librenms.yml     # LibreNMS inventory configuration
 ├── group_vars/
-│   └── all.yml          # Variables applied to all hosts
+│   ├── all.yml          # Variables applied to all hosts
+│   └── nxos.yml         # NX-OS connection & upgrade variables
 ├── host_vars/           # Per-host variable files
 ├── playbooks/
-│   └── site.yml         # Master playbook
-└── roles/               # Reusable Ansible roles
+│   ├── site.yml         # Master playbook
+│   └── nxos_upgrade.yml # NX-OS upgrade playbook (uses nxos_upgrade role)
+└── roles/
+    └── nxos_upgrade/    # NX-OS upgrade role
+        ├── defaults/main.yml   # Default variables
+        ├── meta/main.yml       # Role metadata & dependencies
+        └── tasks/
+            ├── main.yml          # Orchestrator (block/rescue/always)
+            ├── pre_checks.yml    # Version check, bootflash, config backup
+            ├── transfer.yml      # SCP image transfer
+            ├── verify.yml        # MD5 checksum validation
+            ├── install.yml       # Boot variable & reload
+            ├── post_checks.yml   # Version verification & module status
+            ├── cleanup.yml       # Optional old image removal
+            ├── notify_start.yml  # Slack: upgrade starting
+            ├── notify_success.yml# Slack: upgrade succeeded
+            └── notify_failure.yml# Slack: upgrade failed
 ```
 
 ## Prerequisites
@@ -61,17 +79,21 @@ ansible-playbook playbooks/site.yml --limit webservers
 
 ### NX-OS Software Upgrade (`playbooks/nxos_upgrade.yml`)
 
-Automates Cisco NX-OS software upgrades on Nexus switches with full validation.
+Automates Cisco NX-OS software upgrades on Nexus switches using the `nxos_upgrade` role.
 
-**Workflow:**
+The playbook delegates all work to `roles/nxos_upgrade`, which splits the upgrade lifecycle into focused task files:
 
-1. **Pre-checks** — gather current version, verify bootflash space, save/backup config
-2. **Image transfer** — SCP the target image to bootflash (skipped if already present)
-3. **Verification** — MD5 checksum validation
-4. **Install** — set boot variable and trigger upgrade via `nxos_install_os`
-5. **Reload & wait** — wait for the switch to come back online
-6. **Post-checks** — verify target version is running, check module status, save config
-7. **Cleanup** (optional) — delete the old image from bootflash
+| Task file | Purpose |
+|-----------|-----------------------------------------------|
+| `pre_checks.yml` | Gather version, verify bootflash, backup config |
+| `transfer.yml` | SCP image to bootflash (skipped if present) |
+| `verify.yml` | MD5 checksum validation |
+| `install.yml` | Set boot variable, trigger upgrade, wait for reload |
+| `post_checks.yml` | Verify target version, check modules, save config |
+| `cleanup.yml` | Delete old image (when `delete_old_image: true`) |
+| `notify_*.yml` | Slack webhook notifications (start/success/failure) |
+
+The role's `tasks/main.yml` orchestrates these files with `block/rescue/always` to guarantee Slack notifications are sent regardless of outcome.
 
 **Setup:**
 
@@ -184,6 +206,8 @@ ansible-galaxy role init roles/<role_name>
 ```
 
 Then reference it in the appropriate play within `playbooks/site.yml`.
+
+See `roles/nxos_upgrade/` for a working example with defaults, metadata, and split task files.
 
 ## Using Ansible Vault
 
